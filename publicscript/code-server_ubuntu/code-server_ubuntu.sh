@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # @sacloud-name "code server for Ubuntu"
 # @sacloud-once
 #
@@ -9,7 +8,7 @@
 # @sacloud-desc-begin
 #   code serverをインストールします。
 #   サーバ作成後、WebブラウザでサーバのIPアドレス or ドメイン名にアクセスしてください。
-#   https://ドメイン名/
+#   http://サーバのIPアドレス/ or https://ドメイン名/
 #   ※ セットアップには5分程度時間がかかります。
 #   （このスクリプトは、Ubuntu 22.04 でのみ動作します）
 # @sacloud-desc-end
@@ -17,10 +16,9 @@
 # code server の管理ユーザーの入力フォームの設定
 # @sacloud-apikey permission=create AK "APIキー(DNSのAレコードと Let's Encrypt の証明書をセットアップします)"
 # @sacloud-text DOMAIN_ZONE "さくらのクラウドDNSで管理しているDNSゾーン名(APIキーの入力が必須です)" ex="example.com"
-# @sacloud-text SUBDOMAIN "サブドメイン(上記で指定したDNSゾーン名に追加するサブドメイン。未入力の場合はDNSゾーン名でセットアップします)" ex="code-server"
+# @sacloud-text SUBDOMAIN "サブドメイン(上記で指定したDNSゾーン名に追加するサブドメイン。未入力の場合はDNSゾーン名でセットアップします)" ex="code"
 # @sacloud-text shellarg maxlen=128 ex=Admin EMAIL "Let's Encryptの証明書発行で利用するメールアドレス"
 # @sacloud-text required shellarg maxlen=128 ex=test123# PASSWORD "code serverで利用するパスワード"
-
 _motd() {
   LOG=$(ls /root/.sacloud-api/notes/*log)
   case $1 in
@@ -37,6 +35,9 @@ _motd() {
   esac
 }
 
+set -x
+. /etc/os-release
+
 _motd start
 
 # parse
@@ -48,21 +49,17 @@ if [ -n "${SUBDOMAIN}" ]; then
 fi
 EMAIL=@@@EMAIL@@@
 PASSWORD=@@@PASSWORD@@@
-
 # get default user
 DEFAULT_USER=$(ls /home)
 shopt -s expand_aliases
-
 # update
 apt -y update
 apt -y upgrade
-
 # firewall
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw enable
-
 # nginx install and configuration
 apt -y install nginx python3-certbot-nginx
 cat <<EOF >/etc/nginx/sites-available/code-server
@@ -81,7 +78,6 @@ server {
 EOF
 ln -s ../sites-available/code-server /etc/nginx/sites-enabled/code-server
 systemctl restart nginx
-
 # code-server
 latest_tag=$(basename $(curl -sL -o /dev/null -w '%{url_effective}' https://github.com/coder/code-server/releases/latest))
 cd /root
@@ -96,17 +92,14 @@ password: $PASSWORD
 cert: false
 EOF
 chown -R $DEFAULT_USER:$DEFAULT_USER /home/$DEFAULT_USER/.config
-
 systemctl enable --now code-server@$DEFAULT_USER
 #systemctl restart code-server@$DEFAULT_USER
-
 # check ssl required
 KEY="${SACLOUD_APIKEY_ACCESS_TOKEN}:${SACLOUD_APIKEY_ACCESS_TOKEN_SECRET}"
 SSL=1
 if [ "${KEY}" = ":" ]; then
   SSL=0
 fi
-
 # enable let's encrypt
 IPADDR=$(hostname -i | awk '{ print  $1 }')
 if [ ${SSL} -eq 1 ]; then
@@ -122,19 +115,16 @@ if [ ${SSL} -eq 1 ]; then
   else
     DOMAIN=${DOMAIN_ZONE}
   fi
-
   # check NS record
   if [ $(dig ${DOMAIN_ZONE} ns +short | egrep -c '^ns[0-9]+.gslb[0-9]+.sakura.ne.jp.$') -ne 2 ]; then
     echo "Sakura Cloud DNS is not set to NS record in your zone."
     _motd fail
   fi
-
   # check A record
   if [ $(dig ${DOMAIN} A +short | grep -vc "^$") -ne 0 ]; then
     echo "A record of ${DOMAIN} is already registered."
     _motd fail
   fi
-
   CZONE=$(jq -r ".Zone.Name" /root/.sacloud-api/server.json)
   BASE=https://secure.sakura.ad.jp/cloud/zone/${CZONE}/api/cloud/1.1
   API=${BASE}/commonserviceitem/
@@ -142,14 +132,12 @@ if [ ${SSL} -eq 1 ]; then
   ADDJS=add.json
   UPDATEJS=update.json
   RESTXT=response.txt
-
   curl -s -v --user "${KEY}" "${API}" 2>"${RESTXT}" | jq -r ".CommonServiceItems[] | select(.Status.Zone == \"${DOMAIN_ZONE}\")" >${RESJS}
   if [ $(grep -c "Status: 200 OK" ${RESTXT}) -ne 1 ]; then
     echo "API connect error"
     _motd fail
   fi
   rm -f ${RESTXT}
-
   # get resource ID
   RESID=$(jq -r .ID ${RESJS})
   API=${API}${RESID}
@@ -165,13 +153,11 @@ if [ ${SSL} -eq 1 ]; then
       _motd fail
     fi
   fi
-
   cat <<EOF >${ADDJS}
 [
- { "Name": "${NAME}", "Type": "A", "RData": "${IPADDR}" }
+    { "Name": "${NAME}", "Type": "A", "RData": "${IPADDR}" }
 ]
 EOF
-
   cat <<EOF >${UPDATEJS}
 {
   "CommonServiceItem": {
@@ -183,18 +169,12 @@ EOF
   }
 }
 EOF
-
   curl -s -v --user "${KEY}" -X PUT -d "$(cat ${UPDATEJS} | jq -c .)" "${API}" 2>${RESTXT} | jq "."
   if [ $(grep -c "Status: 200 OK" ${RESTXT}) -ne 1 ]; then
     echo "API connect error"
     _motd fail
   fi
   rm -f ${RESTXT}
-
   certbot --non-interactive --redirect --agree-tos --nginx -d $DOMAIN -m $EMAIL
 fi
-
 _motd end
-
-# Reboot
-reboot
