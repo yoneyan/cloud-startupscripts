@@ -9,7 +9,7 @@
 # @sacloud-desc-begin
 #   code serverをインストールします。
 #   サーバ作成後、WebブラウザでサーバのIPアドレス or ドメイン名にアクセスしてください。
-#   http://サーバのIPアドレス/ or https://ドメイン名/
+#   https://ドメイン名/
 #   ※ セットアップには5分程度時間がかかります。
 #   （このスクリプトは、Ubuntu 22.04 でのみ動作します）
 # @sacloud-desc-end
@@ -17,8 +17,8 @@
 # code server の管理ユーザーの入力フォームの設定
 # @sacloud-apikey permission=create AK "APIキー(DNSのAレコードと Let's Encrypt の証明書をセットアップします)"
 # @sacloud-text DOMAIN_ZONE "さくらのクラウドDNSで管理しているDNSゾーン名(APIキーの入力が必須です)" ex="example.com"
-# @sacloud-text DOMAIN "ドメイン(DNSゾーン名が含まれている必要があります。未入力の場合はDNSゾーン名でセットアップします)" ex="code-server.example.com"
-# @sacloud-text shellarg maxlen=128 ex=Admin mail "Let's Encryptの証明書発行で利用するメールアドレス"
+# @sacloud-text SUBDOMAIN "サブドメイン(上記で指定したDNSゾーン名に追加するサブドメイン。未入力の場合はDNSゾーン名でセットアップします)" ex="code-server"
+# @sacloud-text shellarg maxlen=128 ex=Admin EMAIL "Let's Encryptの証明書発行で利用するメールアドレス"
 # @sacloud-text required shellarg maxlen=128 ex=test123# PASSWORD "code serverで利用するパスワード"
 
 _motd() {
@@ -43,7 +43,11 @@ set -x
 
 # parse
 DOMAIN_ZONE=@@@DOMAIN_ZONE@@@
-DOMAIN=@@@DOMAIN@@@
+SUBDOMAIN=@@@SUBDOMAIN@@@
+DOMAIN="{DOMAIN_ZONE}"
+if [ -n "${SUBDOMAIN}" ]; then
+  DOMAIN="${SUBDOMAIN}.${DOMAIN_ZONE}"
+fi
 EMAIL=@@@EMAIL@@@
 PASSWORD=@@@PASSWORD@@@
 
@@ -62,8 +66,8 @@ ufw allow 443/tcp
 ufw enable
 
 # nginx install and configuration
-apt -y install nginx
-cat - <<EOF >/etc/nginx/sites-available/code-server
+apt -y install nginx python3-certbot-nginx
+cat <<EOF >/etc/nginx/sites-available/code-server
 server {
     listen 80;
     listen [::]:80;
@@ -77,20 +81,22 @@ server {
     }
 }
 EOF
+sudo ln -s ../sites-available/code-server /etc/nginx/sites-enabled/code-server
 
 # code-server
 latest_tag=$(basename $(curl -sL -o /dev/null -w '%{url_effective}' https://github.com/coder/code-server/releases/latest))
-cd /root/.sakuravps
+cd /root
 curl -LO https://github.com/coder/code-server/releases/download/${latest_tag}/code-server_${latest_tag#v}_amd64.deb
 dpkg -i code-server_${latest_tag#v}_amd64.deb
 ## Config generate
 mkdir -p /home/$DEFAULT_USER/.config/code-server
-cat - <<EOF >/home/$DEFAULT_USER/.config/code-server/config.yaml
+cat <<EOF >/home/$DEFAULT_USER/.config/code-server/config.yaml
 bind-addr: 0.0.0.0:8080
-auth: PASSWORD
-PASSWORD: $PASSWORD
+auth: password
+password: $PASSWORD
 cert: false
 EOF
+chown -R $DEFAULT_USER:$DEFAULT_USER ~/.config
 
 systemctl enable --now code-server@$DEFAULT_USER
 #systemctl restart code-server@$DEFAULT_USER
@@ -163,11 +169,11 @@ if [ ${SSL} -eq 1 ]; then
 
   cat <<EOF >${ADDJS}
 [
-	{ "Name": "${NAME}", "Type": "A", "RData": "${IPADDR}" }
+ { "Name": "${NAME}", "Type": "A", "RData": "${IPADDR}" }
 ]
 EOF
 
-  cat - <<EOF >${UPDATEJS}
+  cat <<EOF >${UPDATEJS}
 {
   "CommonServiceItem": {
     "Settings": {
