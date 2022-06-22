@@ -35,8 +35,8 @@ _motd() {
   esac
 }
 
-set -x
-. /etc/os-release
+set -eux
+trap '_motd fail' ERR
 
 _motd start
 
