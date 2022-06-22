@@ -94,7 +94,7 @@ auth: password
 password: $PASSWORD
 cert: false
 EOF
-chown -R $DEFAULT_USER:$DEFAULT_USER ~/.config
+chown -R $DEFAULT_USER:$DEFAULT_USER /home/$DEFAULT_USER/.config
 
 systemctl enable --now code-server@$DEFAULT_USER
 #systemctl restart code-server@$DEFAULT_USER
