@@ -38,8 +38,6 @@ _motd() {
 }
 
 _motd start
-set -x
-. /etc/os-release
 
 # parse
 DOMAIN_ZONE=@@@DOMAIN_ZONE@@@
