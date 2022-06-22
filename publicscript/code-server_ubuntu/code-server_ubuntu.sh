@@ -42,7 +42,7 @@ _motd start
 # parse
 DOMAIN_ZONE=@@@DOMAIN_ZONE@@@
 SUBDOMAIN=@@@SUBDOMAIN@@@
-DOMAIN="{DOMAIN_ZONE}"
+DOMAIN="${DOMAIN_ZONE}"
 if [ -n "${SUBDOMAIN}" ]; then
   DOMAIN="${SUBDOMAIN}.${DOMAIN_ZONE}"
 fi
