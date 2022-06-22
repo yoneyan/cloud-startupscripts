@@ -79,7 +79,8 @@ server {
     }
 }
 EOF
-sudo ln -s ../sites-available/code-server /etc/nginx/sites-enabled/code-server
+ln -s ../sites-available/code-server /etc/nginx/sites-enabled/code-server
+systemctl restart nginx
 
 # code-server
 latest_tag=$(basename $(curl -sL -o /dev/null -w '%{url_effective}' https://github.com/coder/code-server/releases/latest))
