@@ -8,7 +8,7 @@
 # @sacloud-desc-begin
 #   code serverをインストールします。
 #   サーバ作成後、WebブラウザでサーバのIPアドレス or ドメイン名にアクセスしてください。
-#   http://サーバのIPアドレス/ or https://ドメイン名/
+#   https://ドメイン名/
 #   ※ セットアップには5分程度時間がかかります。
 #   （このスクリプトは、Ubuntu 22.04 でのみ動作します）
 # @sacloud-desc-end
