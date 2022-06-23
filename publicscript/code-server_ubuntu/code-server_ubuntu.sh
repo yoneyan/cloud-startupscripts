@@ -175,6 +175,24 @@ EOF
     _motd fail
   fi
   rm -f ${RESTXT}
-  certbot --non-interactive --redirect --agree-tos --nginx -d $DOMAIN -m $EMAIL
+
+  DNS_APPLY=0
+
+  for ((i = 0; i < 10; i++)); do
+    echo "waiting command   loop: $i"
+    sleep 10
+    if [ $(dig ${DOMAIN} A +short | grep -vc "^$") -ne 0 ]; then
+      DNS_APPLY=1
+      break
+    fi
+  done
+
+  if [ ${DNS_APPLY} -ne 0 ]; then
+    certbot --non-interactive --redirect --agree-tos --nginx -d $DOMAIN -m $EMAIL
+  else
+    echo "error: DNS apply"
+    _motd fail
+  fi
 fi
+
 _motd end
